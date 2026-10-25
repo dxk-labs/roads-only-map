@@ -22,7 +22,7 @@ A single-file web map (`index.html`) that shows Adelaide with just roads, plus p
 - Tested in a real browser (Oct 2026): library load, Photon search, OSRM routing (drive/walk), trip stops, theme switch with the route kept, and layer toggles all work.
 - CARTO styles now use Protomaps source-layer names (`roads`, `places`, `pois`, `buildings`, `landuse`). `classify()` accepts both these and the old OpenMapTiles names. If a toggle stops working, re-check the style's source-layer names first.
 - Not tested: Nominatim fallback, geolocate button, phone layout.
-- Not deployed yet. Plan: GitHub repo with GitHub Pages, so every push goes live.
+- Deployed: https://dxk-labs.github.io/roads-only-map/ (repo dxk-labs/roads-only-map, GitHub Pages from `main` root). Every push to `main` goes live; the first deploy takes a minute or two.
 
 ## Ideas
 - Save and name multiple trips.
