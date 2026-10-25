@@ -24,6 +24,9 @@ A single-file web map (`index.html`) that shows Adelaide with just roads, plus p
 - Not tested: Nominatim fallback, geolocate button, phone layout.
 - Deployed: https://dxk-labs.github.io/roads-only-map/ (repo dxk-labs/roads-only-map, GitHub Pages from `main` root). Every push to `main` goes live; the first deploy takes a minute or two.
 
+## Saved places
+Tap ☆ on a search result or trip stop to save it (`state.saved`, max 100, kept in localStorage). Saved places show as amber ★ pins on the map (`renderSavedMarkers()`) and in a "Saved places" list in the panel (`renderSaved()`), where each can be flown to, added to the trip, or removed. Places are matched by rounded coordinates (`placeKey()`).
+
 ## Ideas
 - Save and name multiple trips.
 - Shareable link that encodes the stops.

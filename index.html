@@ -221,6 +221,25 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 }
 .ghost:hover { border-color: var(--accent); }
 
+/* Saved places */
+.saved { display: grid; gap: 8px; }
+.star {
+  flex: none;
+  margin: 6px 0;
+  padding: 0 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: #b45309;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+:root[data-theme="dark"] .star { color: #fbbf24; }
+.star:hover { background: var(--line); }
+.stop .star { margin: 0; padding: 4px 6px; }
+.result .icon { align-self: center; margin-right: 6px; }
+
 /* Layers */
 .layers { border-top: 1px solid var(--line); padding-top: 10px; }
 .layers summary {
@@ -275,6 +294,21 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Map markers */
 .pin { width: 28px; height: 28px; font-size: 13px; border: 2px solid #ffffff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
+.pin-saved {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: #3b2300;
+  background: #fbbf24;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
 .pin-preview { width: 18px; height: 18px; background: #ffffff; border: 4px solid #d93025; border-radius: 50%; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
 
 .err {
@@ -338,6 +372,12 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     </div>
   </section>
 
+  <section class="saved" aria-label="Saved places">
+    <h2 class="label">Saved places</h2>
+    <p class="empty" id="saved-empty">Tap ☆ on a search result or trip stop to save it. Saved places stay on the map.</p>
+    <ul class="results" id="saved-list"></ul>
+  </section>
+
   <details class="layers" id="layers">
     <summary>Map layers</summary>
     <div class="layers-body">
@@ -380,6 +420,7 @@ function boot() {
     bike: { path: 'routed-bike/route/v1/bike', gm: 'bicycling', label: 'by bike' }
   };
   var MAX_STOPS = 12;
+  var MAX_SAVED = 100;
   var EMPTY = { type: 'FeatureCollection', features: [] };
 
   function $(id) { return document.getElementById(id); }
@@ -397,13 +438,15 @@ function boot() {
   var state = {
     theme: prefersDark ? 'dark' : 'light',
     roadNames: true, places: false, buildings: false, land: true,
-    mode: 'drive', stops: []
+    mode: 'drive', stops: [], saved: []
   };
   try { Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   if (!STYLES[state.theme]) state.theme = 'light';
   if (!MODES[state.mode]) state.mode = 'drive';
   if (!Array.isArray(state.stops)) state.stops = [];
   state.stops = state.stops.filter(validPlace).slice(0, MAX_STOPS);
+  if (!Array.isArray(state.saved)) state.saved = [];
+  state.saved = state.saved.filter(validPlace).slice(0, MAX_SAVED);
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
   document.documentElement.setAttribute('data-theme', state.theme);
@@ -494,6 +537,7 @@ function boot() {
   map.on('load', function () {
     loaded = true;
     renderMarkers();
+    renderSavedMarkers();
     if (state.stops.length >= 2) updateRoute(true);
   });
   map.on('error', function () { if (!loaded) errBox.hidden = false; });
@@ -590,6 +634,7 @@ function boot() {
       add.setAttribute('aria-label', 'Add ' + r.name + ' to trip');
       add.addEventListener('click', function () { addStop(r); });
       li.appendChild(view);
+      li.appendChild(starBtn(r));
       li.appendChild(add);
       ul.appendChild(li);
     });
@@ -628,6 +673,83 @@ function boot() {
       clearPreview();
     }
   });
+
+  // ---------- Saved places ----------
+
+  var savedMarkers = [];
+  function placeKey(p) { return p.lng.toFixed(5) + ',' + p.lat.toFixed(5); }
+  function savedIndex(p) {
+    var k = placeKey(p);
+    for (var i = 0; i < state.saved.length; i++) if (placeKey(state.saved[i]) === k) return i;
+    return -1;
+  }
+  function toggleSave(p) {
+    var i = savedIndex(p);
+    if (i >= 0) {
+      state.saved.splice(i, 1);
+    } else if (state.saved.length >= MAX_SAVED) {
+      setSearchStatus('You can save up to ' + MAX_SAVED + ' places. Remove one first.', true);
+      return;
+    } else {
+      state.saved.push({ name: p.name, sub: p.sub || '', lng: p.lng, lat: p.lat });
+    }
+    save();
+    renderSaved();
+    renderSavedMarkers();
+    renderTrip();
+  }
+  function starBtn(p) {
+    var b = el('button', 'star');
+    b.type = 'button';
+    function sync() {
+      var on = savedIndex(p) >= 0;
+      b.textContent = on ? '★' : '☆';
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', (on ? 'Remove ' : 'Save ') + p.name + (on ? ' from saved places' : ' to saved places'));
+    }
+    sync();
+    b.addEventListener('click', function () { toggleSave(p); sync(); });
+    return b;
+  }
+
+  function renderSavedMarkers() {
+    savedMarkers.forEach(function (m) { m.remove(); });
+    savedMarkers = [];
+    state.saved.forEach(function (s) {
+      var e = el('button', 'pin-saved', '★');
+      e.type = 'button';
+      e.title = s.name;
+      e.setAttribute('aria-label', 'Saved place: ' + s.name);
+      e.addEventListener('click', function () { flyToPlace(s.lng, s.lat); });
+      savedMarkers.push(new maplibregl.Marker({ element: e }).setLngLat([s.lng, s.lat]).addTo(map));
+    });
+  }
+
+  function renderSaved() {
+    var ul = $('saved-list');
+    ul.textContent = '';
+    state.saved.forEach(function (s) {
+      var li = el('li', 'result');
+      var view = el('button', 'result-main');
+      view.type = 'button';
+      view.appendChild(el('span', 'r-name', s.name));
+      if (s.sub) view.appendChild(el('span', 'r-sub', s.sub));
+      view.addEventListener('click', function () { flyToPlace(s.lng, s.lat); });
+      var add = el('button', 'add', 'Add');
+      add.type = 'button';
+      add.setAttribute('aria-label', 'Add ' + s.name + ' to trip');
+      add.addEventListener('click', function () { addStop(s); });
+      var rm = el('button', 'icon', '×');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + s.name + ' from saved places');
+      rm.addEventListener('click', function () { toggleSave(s); });
+      li.appendChild(view);
+      li.appendChild(add);
+      li.appendChild(rm);
+      ul.appendChild(li);
+    });
+    $('saved-empty').hidden = state.saved.length > 0;
+  }
 
   // ---------- Trip ----------
 
@@ -705,6 +827,7 @@ function boot() {
       }
       li.appendChild(txt);
       var ctl = el('div', 'stop-ctl');
+      ctl.appendChild(starBtn(s));
       ctl.appendChild(iconBtn('↑', 'Move ' + s.name + ' up', i === 0, function () { moveStop(i, -1); }));
       ctl.appendChild(iconBtn('↓', 'Move ' + s.name + ' down', i === n - 1, function () { moveStop(i, 1); }));
       ctl.appendChild(iconBtn('×', 'Remove ' + s.name, false, function () { removeStop(i); }));
@@ -840,6 +963,7 @@ function boot() {
   });
 
   renderTrip();
+  renderSaved();
 }
 
 // Load MapLibre from the first CDN that works, then start the map.
