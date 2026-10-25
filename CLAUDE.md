@@ -27,6 +27,11 @@ A single-file web map (`index.html`) that shows Adelaide with just roads, plus p
 ## Saved places
 Tap ☆ on a search result or trip stop to save it (`state.saved`, max 100, kept in localStorage). Saved places show as amber ★ pins on the map (`renderSavedMarkers()`) and in a "Saved places" list in the panel (`renderSaved()`), where each can be flown to, added to the trip, or removed. Places are matched by rounded coordinates (`placeKey()`).
 
+Each saved place has an icon from the `ICONS` presets, drawn to a transparent PNG for its pin (`iconPng()`); pins shrink as you zoom out (`updatePinScale()`). localStorage is per site, so places saved on localhost don't appear on the live site: use Export/Import (a `saved-places.json` file) to move them. Never commit a real `saved-places.json` to the public repo.
+
+## Search
+Name search: Photon, limited to a box around the map centre (`nearBox()`), with Nominatim as fallback. Nothing nearby shows a "Search everywhere" button, which is a separate request. Whole-query category words ("ice skating", "cafe", ...) in `CATEGORIES` are also looked up by OSM tag through Overpass (best-effort: two public servers, 8 s timeout, the UI says when they are busy). Results get numbered pins that match the list. Clicking the map drops a pin and reverse-geocodes it with Photon (`lookUpSpot()`).
+
 ## Ideas
 - Save and name multiple trips.
 - Shareable link that encodes the stops.

@@ -223,6 +223,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Saved places */
 .saved { display: grid; gap: 8px; }
+.saved-io { display: flex; gap: 8px; }
 .star {
   flex: none;
   margin: 6px 0;
@@ -238,6 +239,35 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 :root[data-theme="dark"] .star { color: #fbbf24; }
 .star:hover { background: var(--line); }
 .stop .star { margin: 0; padding: 4px 6px; }
+.result.saved-item { flex-wrap: wrap; }
+.icon-pick {
+  flex: none;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.icon-pick:hover, .picker button:hover { border-color: var(--accent); }
+.picker { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px 8px; }
+.picker button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.picker button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
 .result .icon { align-self: center; margin-right: 6px; }
 
 /* Layers */
@@ -294,21 +324,50 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Map markers */
 .pin { width: 28px; height: 28px; font-size: 13px; border: 2px solid #ffffff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
-.pin-saved {
+/* Card shown when you click the map */
+.place-popup .maplibregl-popup-content {
+  padding: 12px 14px;
+  color: var(--fg);
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  font: inherit;
+}
+.place-popup .maplibregl-popup-close-button { color: var(--muted); font-size: 18px; padding: 2px 8px; }
+.place-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.place-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.place-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--field); }
+.place-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.place-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.place-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--field); }
+.place-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--field); }
+.place-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--field); }
+.pp { display: grid; gap: 2px; padding-right: 14px; }
+.pp-name { font-weight: 600; overflow-wrap: anywhere; }
+.pp-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.pp-actions { display: flex; gap: 8px; margin-top: 8px; }
+.pp-actions button { padding: 6px 10px; }
+.pin-result, .rnum {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #d93025;
+}
+.pin-result { width: 20px; height: 20px; padding: 0; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4); cursor: pointer; }
+.rnum { flex: none; align-self: center; width: 20px; height: 20px; margin-left: 8px; border-radius: 50%; }
+.pin-saved {
+  --s: var(--pin-scale, 1); /* set from the map zoom, see updatePinScale() */
+  width: calc(30px * var(--s));
+  height: calc(30px * var(--s));
   padding: 0;
-  font-size: 15px;
-  line-height: 1;
-  color: #3b2300;
-  background: #fbbf24;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  background: transparent;
+  border: 0;
   cursor: pointer;
 }
+.pin-saved img { display: block; width: 100%; height: 100%; pointer-events: none; }
 .pin-preview { width: 18px; height: 18px; background: #ffffff; border: 4px solid #d93025; border-radius: 50%; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
 
 .err {
@@ -346,6 +405,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     <button type="submit" class="primary" id="search-go">Search</button>
   </form>
   <p class="status" id="search-status" role="status" hidden></p>
+  <button type="button" class="ghost" id="search-far" hidden>Search everywhere</button>
   <ul class="results" id="results" hidden></ul>
 
   <section class="trip" aria-label="Trip">
@@ -376,6 +436,11 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     <h2 class="label">Saved places</h2>
     <p class="empty" id="saved-empty">Tap ☆ on a search result or trip stop to save it. Saved places stay on the map.</p>
     <ul class="results" id="saved-list"></ul>
+    <div class="saved-io">
+      <button type="button" class="ghost" id="saved-export">Export</button>
+      <button type="button" class="ghost" id="saved-import">Import</button>
+      <input type="file" id="saved-file" accept="application/json,.json" hidden>
+    </div>
   </section>
 
   <details class="layers" id="layers">
@@ -421,6 +486,7 @@ function boot() {
   };
   var MAX_STOPS = 12;
   var MAX_SAVED = 100;
+  var ICONS = ['★', '❤️', '🏠', '💼', '🍴', '☕', '🛒', '🌳', '⛽', '🅿️', '🏥', '🎓', '🏋️', '🍺', '🎬', '✈️'];
   var EMPTY = { type: 'FeatureCollection', features: [] };
 
   function $(id) { return document.getElementById(id); }
@@ -447,6 +513,7 @@ function boot() {
   state.stops = state.stops.filter(validPlace).slice(0, MAX_STOPS);
   if (!Array.isArray(state.saved)) state.saved = [];
   state.saved = state.saved.filter(validPlace).slice(0, MAX_SAVED);
+  state.saved.forEach(function (s) { if (ICONS.indexOf(s.icon) === -1) s.icon = ICONS[0]; });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
   document.documentElement.setAttribute('data-theme', state.theme);
@@ -529,6 +596,14 @@ function boot() {
     } catch (e) {}
   }
 
+  // Saved-place pins shrink as you zoom out: full size at zoom 15+, 40% at zoom 10 and below.
+  function updatePinScale() {
+    var s = Math.max(0.4, Math.min(1, 0.4 + 0.6 * (map.getZoom() - 10) / 5));
+    document.documentElement.style.setProperty('--pin-scale', s.toFixed(2));
+  }
+  map.on('zoom', updatePinScale);
+  updatePinScale();
+
   map.on('style.load', applyLayers);
   map.on('style.load', ensureRouteLayers);
 
@@ -589,29 +664,119 @@ function boot() {
     });
   }
   // Photon first (built for search-as-you-type, biased to the map centre), Nominatim as backup.
-  function geocode(q) {
+  // "Nearby" is a box around the map centre: at least 0.12° (~13 km) each way, or the view width if larger, max 5°.
+  function nearBox() {
+    var c = map.getCenter(), b = map.getBounds();
+    var d = Math.min(5, Math.max(0.12, b.getEast() - b.getWest()));
+    return { w: c.lng - d, s: c.lat - d, e: c.lng + d, n: c.lat + d };
+  }
+  function searchIn(q, box) {
     var c = map.getCenter();
     var enc = encodeURIComponent(q);
-    return fetchJson('https://photon.komoot.io/api/?limit=6&lat=' + c.lat.toFixed(4) + '&lon=' + c.lng.toFixed(4) + '&q=' + enc)
+    var photon = 'https://photon.komoot.io/api/?limit=6&lat=' + c.lat.toFixed(4) + '&lon=' + c.lng.toFixed(4) + '&q=' + enc;
+    if (box) photon += '&bbox=' + [box.w, box.s, box.e, box.n].map(function (n) { return n.toFixed(4); }).join(',');
+    return fetchJson(photon)
       .then(function (d) { return (d.features || []).map(fromPhoton); })
       .catch(function () {
         var b = map.getBounds();
-        var box = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].join(',');
-        return fetchJson('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&viewbox=' + box + '&q=' + enc)
-          .then(function (d) { return (d || []).map(fromNominatim); });
+        var vb = box ? [box.w, box.n, box.e, box.s] : [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()];
+        var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&viewbox=' +
+          vb.map(function (n) { return n.toFixed(4); }).join(',') + (box ? '&bounded=1' : '') + '&q=' + enc;
+        return fetchJson(url).then(function (d) { return (d || []).map(fromNominatim); });
       });
   }
+  // Photon and Nominatim only match place names, so "ice skating" or "cafe" finds nothing there.
+  // These whole-query keywords are looked up by OpenStreetMap tag through Overpass instead.
+  var CATEGORIES = [
+    { re: /^(ice[ -]?skat(e|es|ing)|skating( rink)?|ice rink|ice arena)$/, label: 'Ice skating', tags: ['["leisure"="ice_rink"]', '["sport"~"ice_skating|ice_hockey"]'] },
+    { re: /^(swimming( pool)?s?|pools?|swim)$/, label: 'Swimming pool', tags: ['["leisure"="swimming_pool"]["access"!~"private|no"]'] },
+    { re: /^(gyms?|fitness|fitness cent(er|re))$/, label: 'Gym', tags: ['["leisure"="fitness_centre"]'] },
+    { re: /^(cafes?|coffee|coffee shops?)$/, label: 'Cafe', tags: ['["amenity"="cafe"]'] },
+    { re: /^(restaurants?|food)$/, label: 'Restaurant', tags: ['["amenity"="restaurant"]'] },
+    { re: /^(pubs?|bars?)$/, label: 'Pub or bar', tags: ['["amenity"~"pub|bar"]'] },
+    { re: /^(pharmacy|pharmacies|chemists?)$/, label: 'Pharmacy', tags: ['["amenity"="pharmacy"]'] },
+    { re: /^(supermarkets?|groceries|grocery)$/, label: 'Supermarket', tags: ['["shop"="supermarket"]'] },
+    { re: /^(petrol( stations?)?|gas stations?|fuel|servo)$/, label: 'Petrol station', tags: ['["amenity"="fuel"]'] },
+    { re: /^(atms?|banks?)$/, label: 'Bank or ATM', tags: ['["amenity"~"bank|atm"]'] },
+    { re: /^(hospitals?)$/, label: 'Hospital', tags: ['["amenity"="hospital"]'] },
+    { re: /^(libraries|library)$/, label: 'Library', tags: ['["amenity"="library"]'] },
+    { re: /^(cinemas?|movies?|movie theat(er|re)s?)$/, label: 'Cinema', tags: ['["amenity"="cinema"]'] },
+    { re: /^(bowling( alley)?)$/, label: 'Bowling', tags: ['["leisure"="bowling_alley"]'] },
+    { re: /^(parks?)$/, label: 'Park', tags: ['["leisure"="park"]'] }
+  ];
+  function categoryFor(q) {
+    var s = q.toLowerCase().trim();
+    for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].re.test(s)) return CATEGORIES[i];
+    return null;
+  }
+  function fromOverpass(e, label) {
+    var t = e.tags || {};
+    var c = e.center || { lat: e.lat, lon: e.lon };
+    var street = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ');
+    return {
+      name: t.name,
+      sub: uniq([street, t['addr:suburb'] || t['addr:city']], t.name).join(', ') || label,
+      lng: c.lon, lat: c.lat
+    };
+  }
+  function overpassSearch(cat, box) {
+    var bb = [box.s, box.w, box.n, box.e].map(function (n) { return n.toFixed(4); }).join(',');
+    var body = '[out:json][timeout:15];(' +
+      cat.tags.map(function (t) { return 'nwr' + t + '["name"](' + bb + ');'; }).join('') + ');out center 80;';
+    // Public Overpass servers are often at capacity, so try a second one, and never wait more than 8 s per server.
+    function post(url) {
+      var ctl = new AbortController();
+      var timer = setTimeout(function () { ctl.abort(); }, 8000);
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(body),
+        signal: ctl.signal
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).finally(function () { clearTimeout(timer); });
+    }
+    return Promise.any([post('https://overpass-api.de/api/interpreter'), post('https://overpass.kumi.systems/api/interpreter')])
+      .then(function (d) {
+      var c = map.getCenter();
+      var k = Math.cos(c.lat * Math.PI / 180);
+      var items = (d.elements || []).map(function (e) { return fromOverpass(e, cat.label); }).filter(validPlace);
+      items.forEach(function (p) { p.dist = Math.pow((p.lng - c.lng) * k, 2) + Math.pow(p.lat - c.lat, 2); });
+      items.sort(function (a, b) { return a.dist - b.dist; });
+      return items.slice(0, 8);
+    }).catch(function () { return null; }); // best-effort: null means the lookup failed, and name search still runs
+  }
+  function nameKey(p) { return p.name.toLowerCase() + '@' + p.lng.toFixed(3) + ',' + p.lat.toFixed(3); }
 
-  function setSearchStatus(text, bad) {
+  // Nearby only by default. "Search everywhere" (far = true) drops the box and is a separate, user-triggered request.
+  function geocode(q, far) {
+    if (far) return searchIn(q, null).then(function (items) { return { items: items, catFailed: false }; });
+    var box = nearBox();
+    var cat = categoryFor(q);
+    return Promise.all([cat ? overpassSearch(cat, box) : [], searchIn(q, box)]).then(function (parts) {
+      var seen = {}, out = [];
+      (parts[0] || []).concat(parts[1]).filter(validPlace).forEach(function (p) {
+        var k = nameKey(p);
+        if (!seen[k]) { seen[k] = 1; out.push(p); }
+      });
+      return { items: out.slice(0, 10), catFailed: parts[0] === null };
+    });
+  }
+
+  function setSearchStatus(text, bad, offerFar) {
     var s = $('search-status');
     s.textContent = text || '';
     s.className = 'status' + (bad ? ' bad' : '');
     s.hidden = !text;
+    $('search-far').hidden = !offerFar;
   }
 
   var previewMarker = null;
+  var clickPopup = null;
   function clearPreview() {
     if (previewMarker) { previewMarker.remove(); previewMarker = null; }
+    if (clickPopup) { var p = clickPopup; clickPopup = null; p.remove(); }
   }
   function preview(r) {
     clearPreview();
@@ -619,11 +784,28 @@ function boot() {
     flyToPlace(r.lng, r.lat);
   }
 
+  var resultMarkers = [];
+  function fitResults(items) {
+    var b = new maplibregl.LngLatBounds();
+    items.forEach(function (r) { b.extend([r.lng, r.lat]); });
+    map.fitBounds(b, { padding: fitPadding(), maxZoom: 16 });
+  }
+
   function renderResults(items) {
     var ul = $('results');
     ul.textContent = '';
-    items.forEach(function (r) {
+    resultMarkers.forEach(function (m) { m.remove(); });
+    resultMarkers = [];
+    items.forEach(function (r, i) {
+      var pin = el('button', 'pin-result', String(i + 1));
+      pin.type = 'button';
+      pin.title = r.name;
+      pin.setAttribute('aria-label', 'Search result ' + (i + 1) + ': ' + r.name);
+      pin.addEventListener('click', function () { preview(r); });
+      resultMarkers.push(new maplibregl.Marker({ element: pin }).setLngLat([r.lng, r.lat]).addTo(map));
+
       var li = el('li', 'result');
+      li.appendChild(el('span', 'rnum', String(i + 1)));
       var view = el('button', 'result-main');
       view.type = 'button';
       view.appendChild(el('span', 'r-name', r.name));
@@ -642,17 +824,24 @@ function boot() {
   }
 
   var searchSeq = 0;
-  function runSearch(q) {
+  var lastQuery = '';
+  function runSearch(q, far) {
     var seq = ++searchSeq;
+    lastQuery = q;
     clearPreview();
     renderResults([]);
     setSearchStatus('Searching…');
-    geocode(q).then(function (items) {
+    geocode(q, far).then(function (res) {
       if (seq !== searchSeq) return;
-      items = items.filter(validPlace);
-      if (!items.length) { setSearchStatus('No places found for “' + q + '”.'); return; }
-      setSearchStatus('');
+      var items = res.items.filter(validPlace);
+      var busy = ' The free map-data server for category searches is busy right now, so try again in a minute.';
+      if (!items.length) {
+        setSearchStatus((far ? 'No places found for “' + q + '”.' : 'Nothing found near here for “' + q + '”.') + (res.catFailed ? busy : ''), res.catFailed, !far);
+        return;
+      }
+      setSearchStatus(far ? 'Showing results from anywhere. Closest matches may be far away.' : res.catFailed ? 'Showing name matches only.' + busy : '');
       renderResults(items);
+      fitResults(items);
     }).catch(function () {
       if (seq !== searchSeq) return;
       setSearchStatus("Couldn't reach the search service. Check your connection and try again.", true);
@@ -663,6 +852,9 @@ function boot() {
     e.preventDefault();
     var q = $('q').value.trim();
     if (q) runSearch(q);
+  });
+  $('search-far').addEventListener('click', function () {
+    if (lastQuery) runSearch(lastQuery, true);
   });
   $('q').addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
@@ -691,7 +883,7 @@ function boot() {
       setSearchStatus('You can save up to ' + MAX_SAVED + ' places. Remove one first.', true);
       return;
     } else {
-      state.saved.push({ name: p.name, sub: p.sub || '', lng: p.lng, lat: p.lat });
+      state.saved.push({ name: p.name, sub: p.sub || '', lng: p.lng, lat: p.lat, icon: ICONS[0] });
     }
     save();
     renderSaved();
@@ -712,11 +904,31 @@ function boot() {
     return b;
   }
 
+  // Each icon is drawn once to a transparent PNG (no background, border or outline) and reused for every pin.
+  var iconPngs = {};
+  function iconPng(icon) {
+    if (iconPngs[icon]) return iconPngs[icon];
+    var c = document.createElement('canvas');
+    c.width = c.height = 96;
+    var g = c.getContext('2d');
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '72px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif';
+    g.fillStyle = '#f59e0b'; // only affects the plain ★; emoji keep their own colours
+    g.fillText(icon, 48, 52);
+    iconPngs[icon] = c.toDataURL('image/png');
+    return iconPngs[icon];
+  }
+
   function renderSavedMarkers() {
     savedMarkers.forEach(function (m) { m.remove(); });
     savedMarkers = [];
     state.saved.forEach(function (s) {
-      var e = el('button', 'pin-saved', '★');
+      var e = el('button', 'pin-saved');
+      var img = el('img');
+      img.src = iconPng(s.icon);
+      img.alt = '';
+      e.appendChild(img);
       e.type = 'button';
       e.title = s.name;
       e.setAttribute('aria-label', 'Saved place: ' + s.name);
@@ -725,11 +937,29 @@ function boot() {
     });
   }
 
+  var pickerOpen = null; // placeKey of the saved place whose icon picker is open
+  function setIcon(s, icon) {
+    s.icon = icon;
+    pickerOpen = null;
+    save();
+    renderSaved();
+    renderSavedMarkers();
+  }
+
   function renderSaved() {
     var ul = $('saved-list');
     ul.textContent = '';
     state.saved.forEach(function (s) {
-      var li = el('li', 'result');
+      var li = el('li', 'result saved-item');
+      var pick = el('button', 'icon-pick', s.icon);
+      pick.type = 'button';
+      pick.setAttribute('aria-label', 'Change icon for ' + s.name);
+      pick.setAttribute('aria-expanded', String(pickerOpen === placeKey(s)));
+      pick.addEventListener('click', function () {
+        pickerOpen = pickerOpen === placeKey(s) ? null : placeKey(s);
+        renderSaved();
+      });
+      li.appendChild(pick);
       var view = el('button', 'result-main');
       view.type = 'button';
       view.appendChild(el('span', 'r-name', s.name));
@@ -746,10 +976,127 @@ function boot() {
       li.appendChild(view);
       li.appendChild(add);
       li.appendChild(rm);
+      if (pickerOpen === placeKey(s)) {
+        var row = el('div', 'picker');
+        row.setAttribute('role', 'group');
+        row.setAttribute('aria-label', 'Icons for ' + s.name);
+        ICONS.forEach(function (ic) {
+          var b = el('button', null, ic);
+          b.type = 'button';
+          b.setAttribute('aria-pressed', String(s.icon === ic));
+          b.setAttribute('aria-label', 'Use icon ' + ic);
+          b.addEventListener('click', function () { setIcon(s, ic); });
+          row.appendChild(b);
+        });
+        li.appendChild(row);
+      }
       ul.appendChild(li);
     });
     $('saved-empty').hidden = state.saved.length > 0;
   }
+
+  // Saved places live in this browser only (localStorage is per site), so Export/Import moves them between browsers.
+  $('saved-export').addEventListener('click', function () {
+    if (!state.saved.length) { setSearchStatus('No saved places to export yet.'); return; }
+    var blob = new Blob([JSON.stringify({ app: 'roads-only-map', saved: state.saved }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'saved-places.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  $('saved-import').addEventListener('click', function () { $('saved-file').click(); });
+  $('saved-file').addEventListener('change', function () {
+    var input = this;
+    var file = input.files && input.files[0];
+    if (!file) return;
+    file.text().then(function (txt) {
+      var data = JSON.parse(txt);
+      var list = Array.isArray(data) ? data : data.saved;
+      if (!Array.isArray(list)) throw new Error('bad file');
+      var added = 0;
+      list.forEach(function (p) {
+        var ok = p && typeof p.name === 'string' && typeof p.lng === 'number' && typeof p.lat === 'number' &&
+          Math.abs(p.lng) <= 180 && Math.abs(p.lat) <= 90;
+        if (!ok || state.saved.length >= MAX_SAVED || savedIndex(p) >= 0) return;
+        state.saved.push({
+          name: p.name.slice(0, 200),
+          sub: typeof p.sub === 'string' ? p.sub.slice(0, 300) : '',
+          lng: p.lng, lat: p.lat,
+          icon: ICONS.indexOf(p.icon) >= 0 ? p.icon : ICONS[0]
+        });
+        added++;
+      });
+      save();
+      renderSaved();
+      renderSavedMarkers();
+      renderTrip();
+      setSearchStatus(added + (added === 1 ? ' place' : ' places') + ' imported.');
+    }).catch(function () {
+      setSearchStatus("Couldn't read that file. Use a file exported from this map.", true);
+    }).finally(function () { input.value = ''; });
+  });
+
+  // ---------- Click the map to look up a spot ----------
+
+  var clickSeq = 0;
+  function placeCard(p, loading) {
+    var box = el('div', 'pp');
+    box.appendChild(el('div', 'pp-name', p.name));
+    if (p.sub) box.appendChild(el('div', 'pp-sub', p.sub));
+    if (!loading) {
+      var row = el('div', 'pp-actions');
+      var sv = el('button', 'ghost');
+      sv.type = 'button';
+      var sync = function () { sv.textContent = savedIndex(p) >= 0 ? '★ Saved' : '☆ Save'; };
+      sync();
+      sv.addEventListener('click', function () { toggleSave(p); sync(); });
+      var add = el('button', 'primary', 'Add to trip');
+      add.type = 'button';
+      add.addEventListener('click', function () { addStop(p); });
+      row.appendChild(sv);
+      row.appendChild(add);
+      box.appendChild(row);
+    }
+    return box;
+  }
+  function lookUpSpot(lngLat) {
+    var seq = ++clickSeq;
+    searchSeq++; // a pending text search must not draw over this
+    clearPreview();
+    renderResults([]);
+    setSearchStatus('');
+    var coords = lngLat.lat.toFixed(5) + ', ' + lngLat.lng.toFixed(5);
+    previewMarker = new maplibregl.Marker({ element: el('div', 'pin-preview') }).setLngLat(lngLat).addTo(map);
+    var popup = new maplibregl.Popup({ offset: 14, maxWidth: '260px', className: 'place-popup' })
+      .setLngLat(lngLat)
+      .setDOMContent(placeCard({ name: 'Looking up…', sub: coords }, true))
+      .addTo(map);
+    clickPopup = popup;
+    popup.on('close', function () {
+      if (clickPopup === popup) { clickPopup = null; if (previewMarker) { previewMarker.remove(); previewMarker = null; } }
+    });
+    // Nearest named feature within 100 m (Photon reverse). If none, it is just a dropped pin.
+    fetchJson('https://photon.komoot.io/reverse?limit=1&radius=0.1&lon=' + lngLat.lng.toFixed(6) + '&lat=' + lngLat.lat.toFixed(6))
+      .then(function (d) {
+        var f = d.features && d.features[0];
+        return f ? fromPhoton(f) : { name: 'Dropped pin', sub: coords };
+      })
+      .catch(function () { return { name: 'Dropped pin', sub: coords }; })
+      .then(function (p) {
+        if (seq !== clickSeq || clickPopup !== popup) return;
+        p.lng = lngLat.lng;
+        p.lat = lngLat.lat;
+        popup.setDOMContent(placeCard(p, false));
+      });
+  }
+  map.on('click', function (e) {
+    var t = e.originalEvent && e.originalEvent.target;
+    if (t && t.closest && t.closest('.maplibregl-marker, .maplibregl-popup')) return; // pins and the card have their own clicks
+    lookUpSpot(e.lngLat);
+  });
 
   // ---------- Trip ----------
 
